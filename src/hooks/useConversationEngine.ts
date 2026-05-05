@@ -35,7 +35,7 @@ export type CallState =
 
 export type Verification = "correct" | "partial" | "incorrect";
 
-const SILENCE_MS = 1200;
+const SILENCE_MS = 900;
 
 export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   const [language, setLanguage] = useState<TTSLang>(initialLang);
