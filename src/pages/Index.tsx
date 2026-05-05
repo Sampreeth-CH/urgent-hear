@@ -6,7 +6,8 @@ import {
 import { TTSLang } from "@/lib/tts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, PhoneOff, Phone, AlertTriangle } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Phone, AlertTriangle, LayoutDashboard } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const LANGS: { code: TTSLang; label: string }[] = [
   { code: "en-IN", label: "English" },
@@ -73,13 +74,20 @@ const Index = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${stateColor[callState]}`}
-            />
-            <span className="text-sm text-muted-foreground">
-              {stateLabel[callState]}
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-2">
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${stateColor[callState]}`}
+              />
+              <span className="text-sm text-muted-foreground">
+                {stateLabel[callState]}
+              </span>
             </span>
+            <Link to="/dashboard">
+              <Button variant="outline" size="sm" className="gap-1">
+                <LayoutDashboard className="h-4 w-4" /> Agent Console
+              </Button>
+            </Link>
           </div>
         </div>
       </header>

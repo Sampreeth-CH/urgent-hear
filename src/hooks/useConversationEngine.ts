@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cancelSpeech, isSpeaking, speak, TTSLang } from "@/lib/tts";
+import { queueStore } from "@/lib/queueStore";
 
 export type Sentiment = "calm" | "distress" | "panic";
 export type Priority = "low" | "medium" | "critical";
@@ -34,7 +35,7 @@ export type CallState =
 
 export type Verification = "correct" | "partial" | "incorrect";
 
-const SILENCE_MS = 1200;
+const SILENCE_MS = 900;
 
 export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   const [language, setLanguage] = useState<TTSLang>(initialLang);
@@ -118,12 +119,11 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
             : "Connecting you to a human agent now. Please stay on the line.";
       speak(msg, languageRef.current);
       console.warn("[ESCALATION]", payload);
-      // Drop into queue (in-memory). A real impl would POST to backend.
       try {
-        const q = JSON.parse(localStorage.getItem("agent_queue") || "[]");
-        q.push(payload);
-        localStorage.setItem("agent_queue", JSON.stringify(q));
-      } catch {}
+        queueStore.enqueue(payload);
+      } catch (e) {
+        console.error("queue enqueue failed", e);
+      }
     },
     [pendingAnalysis, pushTurn, turns],
   );
