@@ -227,17 +227,17 @@ The application should now be running locally.
 ## 📸 Screenshots
 
 ### 🎙️ Voice Interaction
-![Voice Screen](https://github.com/user-attachments/assets/106d26c4-2a6a-4210-bd0e-8e17b12d4a52)
+![Voice Screen](./assets/voice.png)
 
 ---
 
 ### 🔁 Verification Loop
-![Verification Screen](https://github.com/user-attachments/assets/03dfd0ae-70d6-4a07-a38c-42f063456346)
+![Verification Screen](./assets/verification.png)
 
 ---
 
 ### 📊 Agent Dashboard
-![Dashboard](https://github.com/user-attachments/assets/c4f4a0df-d22d-425e-8e17b12d4a0df-d22d-425e-8e17b12d4a52)
+![Dashboard](./assets/dashboard.png)
 
 
 
