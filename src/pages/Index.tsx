@@ -6,7 +6,8 @@ import {
 import { TTSLang } from "@/lib/tts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, PhoneOff, Phone, AlertTriangle } from "lucide-react";
+import { Mic, MicOff, PhoneOff, Phone, AlertTriangle, LayoutDashboard } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const LANGS: { code: TTSLang; label: string }[] = [
   { code: "en-IN", label: "English" },
