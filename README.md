@@ -107,6 +107,60 @@ Agents receive:
 - Lovable Cloud (Edge Functions)
 
 ---
+## 📸 Screenshots
+
+### 🎙️ Voice Interaction
+![Voice Screen](./assets/voice.png)
+
+---
+
+### 🔁 Verification Loop
+![Verification Screen](./assets/verification.png)
+
+---
+
+### 📊 Agent Dashboard
+![Dashboard](./assets/dashboard.png)
+
+
+
+🤝 Contributing
+
+Contributions are welcome!
+Feel free to fork the repo and submit a pull request.
+
+
+---
+
+📄 License
+
+This project is developed for the AI for Bharat Hackathon (Theme 12: AI for 1092 Helpline).
+
+
+---
+
+🙌 Acknowledgment
+
+Built with a focus on improving real-world emergency response systems using AI.
+
+👨‍💻 Authors
+
+- Vicky S
+- Sampreeth C H
+
+---
+📌 Future Improvements
+
+Support for more Indian languages
+
+Improved dialect detection
+
+Offline voice processing
+
+Advanced analytics dashboard
+
+---
+
 
 ## 🚀 Getting Started
 
@@ -221,66 +275,6 @@ npm run dev
 
 The application should now be running locally.
 
-
----
-
-## 📸 Screenshots
-
-### 🎙️ Voice Interaction
-![Voice Screen](./assets/voice.png)
-
----
-
-### 🔁 Verification Loop
-![Verification Screen](./assets/verification.png)
-
----
-
-### 📊 Agent Dashboard
-![Dashboard](./assets/dashboard.png)
-
-
-
-
----
-
-📌 Future Improvements
-
-Support for more Indian languages
-
-Improved dialect detection
-
-Offline voice processing
-
-Advanced analytics dashboard
-
-
-
----
-
-🤝 Contributing
-
-Contributions are welcome!
-Feel free to fork the repo and submit a pull request.
-
-
----
-
-📄 License
-
-This project is developed for the AI for Bharat Hackathon (Theme 12: AI for 1092 Helpline).
-
-
----
-
-🙌 Acknowledgment
-
-Built with a focus on improving real-world emergency response systems using AI.
-
-👨‍💻 Authors
-
-- Vicky S
-- Sampreeth C H
 
 ---
 
