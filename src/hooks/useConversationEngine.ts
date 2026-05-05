@@ -118,12 +118,11 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
             : "Connecting you to a human agent now. Please stay on the line.";
       speak(msg, languageRef.current);
       console.warn("[ESCALATION]", payload);
-      // Drop into queue (in-memory). A real impl would POST to backend.
       try {
-        const q = JSON.parse(localStorage.getItem("agent_queue") || "[]");
-        q.push(payload);
-        localStorage.setItem("agent_queue", JSON.stringify(q));
-      } catch {}
+        queueStore.enqueue(payload);
+      } catch (e) {
+        console.error("queue enqueue failed", e);
+      }
     },
     [pendingAnalysis, pushTurn, turns],
   );
