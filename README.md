@@ -111,10 +111,115 @@ Agents receive:
 ## 🚀 Getting Started
 
 ```bash
-git clone https://github.com/VickySource/urgent-hear.git
-cd urgent-hear
+🚀 Instructions to Run
 
-Open in VS Studio and run the project.
+📥 1. Download the Project
+
+Go to the repository:
+👉 https://github.com/VickySource/urgent-hear
+
+Click “Code” → “Download ZIP”
+
+Extract the ZIP file to any location on your system
+(Example: Desktop / Documents / Projects folder)
+
+
+
+---
+
+📂 2. Open Project in Terminal / Command Prompt
+
+Navigate to the project folder:
+
+cd path/to/urgent-hear
+
+👉 Example (Windows):
+
+cd Desktop/urgent-hear
+
+👉 Example (Mac/Linux):
+
+cd ~/Desktop/urgent-hear
+
+
+---
+
+📦 3. Install Dependencies
+
+Run:
+
+npm install
+
+This will download all required packages.
+
+
+---
+
+▶️ 4. Start the Development Server
+
+Run:
+
+npm run dev
+
+
+---
+
+🌐 5. Open in Browser
+
+After running, you will see a local URL like:
+
+http://localhost:5173
+
+Open it in your browser to view the application.
+
+
+---
+
+🧪 Optional Commands
+
+Build project:
+
+
+npm run build
+
+Preview build:
+
+
+npm run preview
+
+Run tests:
+
+
+npm run test
+
+
+---
+
+⚠️ Requirements
+
+Node.js (v18 or higher recommended)
+
+npm installed
+
+
+
+---
+
+🛠️ If you face issues
+
+rm -rf node_modules package-lock.json
+npm install
+
+Then run again:
+
+npm run dev
+
+
+---
+
+✅ Done
+
+The application should now be running locally.
 
 
 ---
@@ -122,18 +227,13 @@ Open in VS Studio and run the project.
 ## 📸 Screenshots
 
 ### 🎙️ Voice Interaction
-![Voice Screen](https://github.com/user-attachments/assets/106d26c4-2a6a-4210-bd0e-8e17b12d4a52)
-
----
+![Voice](https://github.com/user-attachments/assets/106d26c4-2a6a-4210-bd0e-8e17b12d4a52)
 
 ### 🔁 Verification Loop
-![Verification Screen](https://github.com/user-attachments/assets/03dfd0ae-70d6-4a07-a38c-42f063456346)
-
----
+![Verification](https://github.com/user-attachments/assets/03dfd0ae-70d6-4a07-a38c-42f063456346)
 
 ### 📊 Agent Dashboard
 ![Dashboard](https://github.com/user-attachments/assets/c4f4a0df-d22d-425e-8d67-992974dd62c7)
-
 
 
 
@@ -173,6 +273,10 @@ This project is developed for the AI for Bharat Hackathon (Theme 12: AI for 1092
 
 Built with a focus on improving real-world emergency response systems using AI.
 
+👨‍💻 Authors
+
+- Vicky S
+- Sampreeth C H
 
 ---
 
