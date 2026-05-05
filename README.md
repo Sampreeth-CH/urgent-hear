@@ -119,10 +119,22 @@ Open in VS Studio and run the project.
 
 ---
 
-📸 Screenshots
+## 📸 Screenshots
+
+### 🎙️ Voice Interaction
+![Voice Screen](https://github.com/user-attachments/assets/106d26c4-2a6a-4210-bd0e-8e17b12d4a52)
+
+---
+
+### 🔁 Verification Loop
+![Verification Screen](https://github.com/user-attachments/assets/03dfd0ae-70d6-4a07-a38c-42f063456346)
+
+---
+
+### 📊 Agent Dashboard
+![Dashboard](https://github.com/user-attachments/assets/c4f4a0df-d22d-425e-8d67-992974dd62c7)
 
 
-<img width="1843" height="815" alt="4" src="https://github.com/user-attachments/assets/6f314d0b-22d7-4b1a-a52d-2bf4f667d22f" />
 
 
 
