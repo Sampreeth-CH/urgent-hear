@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cancelSpeech, isSpeaking, speak, TTSLang } from "@/lib/tts";
+import { queueStore } from "@/lib/queueStore";
 
 export type Sentiment = "calm" | "distress" | "panic";
 export type Priority = "low" | "medium" | "critical";
