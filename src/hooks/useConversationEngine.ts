@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cancelSpeech, isSpeaking, speak, TTSLang } from "@/lib/tts";
-import { queueStore } from "@/lib/queueStore";
+import { queueStore, CallerInfo, QueuedCall, CallStatus } from "@/lib/queueStore";
 
 export type Sentiment = "calm" | "distress" | "panic";
 export type Priority = "low" | "medium" | "critical";
 
-export interface Analysis {
+export interface Triage {
   intent: string;
   incident_type: string;
+  category: string;
   location: string;
   sentiment: Sentiment;
   confidence_score: number;
   priority: Priority;
   summary: string;
-  ack_phrase: string;
+  assistant_reply: string;
+  suggested_action: string;
+  needs_human: boolean;
+  resolved_by_ai: boolean;
 }
 
 export interface Turn {
@@ -22,7 +26,7 @@ export interface Turn {
   role: "user" | "agent" | "system";
   text: string;
   ts: number;
-  analysis?: Analysis;
+  triage?: Triage;
 }
 
 export type CallState =
@@ -30,26 +34,23 @@ export type CallState =
   | "listening"
   | "thinking"
   | "speaking"
-  | "verifying"
-  | "escalated";
+  | "muted"
+  | "escalated"
+  | "resolved";
 
-export type Verification = "correct" | "partial" | "incorrect";
-
-const SILENCE_MS = 900;
+const SILENCE_MS = 1000;
 
 export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   const [language, setLanguage] = useState<TTSLang>(initialLang);
   const [callState, setCallState] = useState<CallState>("idle");
-  const [liveTranscript, setLiveTranscript] = useState(""); // interim
-  const [stableTranscript, setStableTranscript] = useState(""); // last final segment pending NLP
+  const [liveTranscript, setLiveTranscript] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [pendingAnalysis, setPendingAnalysis] = useState<Analysis | null>(null);
+  const [latestTriage, setLatestTriage] = useState<Triage | null>(null);
   const [escalated, setEscalated] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Counters for escalation rules
-  const incorrectCountRef = useRef(0);
-  const partialCountRef = useRef(0);
+  const [caseId, setCaseId] = useState<string | null>(null);
+  const [caller, setCaller] = useState<CallerInfo | null>(null);
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const silenceTimerRef = useRef<number | null>(null);
@@ -58,9 +59,13 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   const isSpeakingRef = useRef(false);
   const processingRef = useRef(false);
   const languageRef = useRef<TTSLang>(initialLang);
-  const callStateRef = useRef<CallState>("idle");
   const escalatedRef = useRef(false);
   const wantListeningRef = useRef(false);
+  const mutedRef = useRef(false);
+  const caseIdRef = useRef<string | null>(null);
+  const callerRef = useRef<CallerInfo | null>(null);
+  const turnsRef = useRef<Turn[]>([]);
+  const lowConfStreakRef = useRef(0);
 
   useEffect(() => {
     languageRef.current = language;
@@ -72,8 +77,8 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   }, [language]);
 
   useEffect(() => {
-    callStateRef.current = callState;
-  }, [callState]);
+    turnsRef.current = turns;
+  }, [turns]);
 
   const pushTurn = useCallback((t: Omit<Turn, "id" | "ts">) => {
     setTurns((prev) => [
@@ -82,109 +87,162 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
     ]);
   }, []);
 
+  // Persist case to dashboard queue
+  const persistCase = useCallback(
+    (patch: Partial<QueuedCall>) => {
+      const id = caseIdRef.current;
+      if (!id) return;
+      const existing = queueStore.get(id);
+      const transcript = turnsRef.current
+        .map((t) => `[${new Date(t.ts).toLocaleTimeString()}] ${t.role}: ${t.text}`)
+        .join("\n");
+      const base: QueuedCall = existing ?? {
+        id,
+        ts: new Date().toISOString(),
+        reason: "incoming",
+        transcript: "",
+        events: [],
+        interpreted: null,
+        confidence: null,
+        sentiment: null,
+        priority: null,
+        category: null,
+        suggestedAction: null,
+        language: languageRef.current,
+        status: "queued",
+        caller: callerRef.current,
+      };
+      queueStore.upsert({ ...base, transcript, caller: callerRef.current, ...patch });
+    },
+    [],
+  );
+
+  const addEvent = useCallback(
+    (kind: "user" | "agent_ai" | "agent_human" | "system" | "escalation" | "status", text: string) => {
+      if (!caseIdRef.current) return;
+      // ensure case exists
+      if (!queueStore.get(caseIdRef.current)) persistCase({});
+      queueStore.addEvent(caseIdRef.current, { kind, text });
+    },
+    [persistCase],
+  );
+
   // ----- Escalation -----
   const escalate = useCallback(
-    (reason: string, analysis?: Analysis | null) => {
+    (reason: string, triage?: Triage | null) => {
       if (escalatedRef.current) return;
       escalatedRef.current = true;
       setEscalated(true);
       setCallState("escalated");
       cancelSpeech();
-      try {
-        recognitionRef.current?.stop();
-      } catch {}
-      wantListeningRef.current = false;
-      const payload = {
+      const t = triage ?? latestTriage;
+      persistCase({
+        status: "escalated",
         reason,
-        transcript: turns
-          .map((t) => `[${t.role}] ${t.text}`)
-          .join("\n"),
-        interpreted: analysis ?? pendingAnalysis,
-        confidence: (analysis ?? pendingAnalysis)?.confidence_score ?? null,
-        sentiment: (analysis ?? pendingAnalysis)?.sentiment ?? null,
-        priority: (analysis ?? pendingAnalysis)?.priority ?? null,
+        interpreted: t,
+        confidence: t?.confidence_score ?? null,
+        sentiment: t?.sentiment ?? null,
+        priority: t?.priority ?? null,
+        category: t?.category ?? null,
+        suggestedAction: t?.suggested_action ?? null,
         language: languageRef.current,
-        ts: new Date().toISOString(),
-      };
-      pushTurn({
-        role: "system",
-        text: `🚨 Escalated to human agent — ${reason}`,
       });
-      // Speak escalation notice
+      addEvent("escalation", `Escalated to human agent — ${reason}`);
+      pushTurn({ role: "system", text: `🚨 Escalated to human agent — ${reason}` });
       const msg =
         languageRef.current === "hi-IN"
-          ? "मैं आपको एक एजेंट से जोड़ रहा हूँ। कृपया लाइन पर बने रहें।"
+          ? "मैं एक एजेंट को जोड़ रहा हूँ। लाइन पर बने रहें।"
           : languageRef.current === "kn-IN"
-            ? "ನಾನು ನಿಮ್ಮನ್ನು ಏಜೆಂಟ್‌ಗೆ ಸಂಪರ್ಕಿಸುತ್ತಿದ್ದೇನೆ. ದಯವಿಟ್ಟು ಲೈನ್‌ನಲ್ಲಿ ಇರಿ।"
-            : "Connecting you to a human agent now. Please stay on the line.";
-      speak(msg, languageRef.current);
-      console.warn("[ESCALATION]", payload);
-      try {
-        queueStore.enqueue(payload);
-      } catch (e) {
-        console.error("queue enqueue failed", e);
-      }
+            ? "ಏಜೆಂಟ್‌ಗೆ ಸಂಪರ್ಕಿಸುತ್ತಿದ್ದೇನೆ. ಲೈನ್‌ನಲ್ಲಿ ಇರಿ."
+            : "Connecting a human agent now. Please stay on the line.";
+      isSpeakingRef.current = true;
+      speak(msg, languageRef.current, {
+        onEnd: () => { isSpeakingRef.current = false; },
+      });
     },
-    [pendingAnalysis, pushTurn, turns],
+    [latestTriage, persistCase, addEvent, pushTurn],
   );
 
-  // ----- NLP call -----
-  const runNLP = useCallback(
+  // ----- NLP / Triage call -----
+  const runTriage = useCallback(
     async (transcript: string) => {
       processingRef.current = true;
       setCallState("thinking");
       pushTurn({ role: "user", text: transcript });
+      addEvent("user", transcript);
 
       try {
+        const history = turnsRef.current
+          .slice(-6)
+          .map((t) => `${t.role}: ${t.text}`)
+          .join("\n");
         const { data, error } = await supabase.functions.invoke("nlp-analyze", {
-          body: { transcript, language: languageRef.current },
+          body: {
+            transcript,
+            language: languageRef.current,
+            history,
+            caller: callerRef.current,
+          },
         });
         if (error) throw error;
-        const analysis = data as Analysis;
-        setPendingAnalysis(analysis);
+        const triage = data as Triage;
+        setLatestTriage(triage);
 
-        // Auto-escalate rules
-        if (analysis.sentiment === "panic") {
-          escalate("panic detected", analysis);
-          return;
-        }
-        if (analysis.confidence_score < 30) {
-          escalate("low confidence", analysis);
-          return;
+        persistCase({
+          interpreted: triage,
+          confidence: triage.confidence_score,
+          sentiment: triage.sentiment,
+          priority: triage.priority,
+          category: triage.category,
+          suggestedAction: triage.suggested_action,
+          status: triage.needs_human ? "escalated" : (triage.resolved_by_ai ? "ai_resolving" : "in_progress"),
+        });
+
+        // Hard escalation rules
+        if (triage.sentiment === "panic") return escalate("panic detected", triage);
+        if (triage.priority === "critical" && triage.needs_human) return escalate("critical incident", triage);
+        if (triage.needs_human) return escalate("AI requested human", triage);
+
+        if (triage.confidence_score < 40) {
+          lowConfStreakRef.current += 1;
+          if (lowConfStreakRef.current >= 2) return escalate("low confidence repeated", triage);
+        } else {
+          lowConfStreakRef.current = 0;
         }
 
-        // Speak verification ack
+        // Speak short reply
+        const reply = triage.assistant_reply?.trim() || triage.summary;
         setCallState("speaking");
-        const ack = analysis.ack_phrase || analysis.summary;
-        pushTurn({ role: "agent", text: ack, analysis });
+        pushTurn({ role: "agent", text: reply, triage });
+        addEvent("agent_ai", reply);
         isSpeakingRef.current = true;
-        speak(ack, languageRef.current, {
+        speak(reply, languageRef.current, {
           onEnd: () => {
             isSpeakingRef.current = false;
             if (escalatedRef.current) return;
-            setCallState("verifying");
+            if (triage.resolved_by_ai) {
+              persistCase({ status: "ai_resolving" });
+            }
+            setCallState(mutedRef.current ? "muted" : "listening");
           },
           onError: () => {
             isSpeakingRef.current = false;
-            setCallState("verifying");
+            setCallState(mutedRef.current ? "muted" : "listening");
           },
         });
       } catch (e: any) {
         console.error(e);
         setError(e?.message || "NLP error");
-        setCallState("listening");
+        setCallState(mutedRef.current ? "muted" : "listening");
       } finally {
         processingRef.current = false;
       }
     },
-    [escalate, pushTurn],
+    [escalate, persistCase, addEvent, pushTurn],
   );
 
-  // ----- Silence-triggered processing -----
   const armSilenceTimer = useCallback(() => {
-    if (silenceTimerRef.current) {
-      window.clearTimeout(silenceTimerRef.current);
-    }
+    if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = window.setTimeout(() => {
       const text = (finalBufferRef.current + " " + interimBufferRef.current)
         .replace(/\s+/g, " ")
@@ -192,21 +250,19 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
       finalBufferRef.current = "";
       interimBufferRef.current = "";
       setLiveTranscript("");
-      setStableTranscript(text);
       if (!text) return;
       if (escalatedRef.current) return;
-      runNLP(text);
+      runTriage(text);
     }, SILENCE_MS);
-  }, [runNLP]);
+  }, [runTriage]);
 
-  // ----- Recognition setup -----
   const ensureRecognition = useCallback(() => {
     if (recognitionRef.current) return recognitionRef.current;
     const SR =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
     if (!SR) {
-      setError("Speech recognition not supported in this browser. Use Chrome.");
+      setError("Speech recognition not supported. Please use Chrome.");
       return null;
     }
     const rec: SpeechRecognition = new SR();
@@ -215,6 +271,7 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
     rec.lang = languageRef.current;
 
     rec.onresult = (ev: SpeechRecognitionEvent) => {
+      if (mutedRef.current) return;
       let interim = "";
       let finalText = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
@@ -224,23 +281,18 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
       }
       if (finalText) finalBufferRef.current += finalText;
       interimBufferRef.current = interim;
-      const combined = (finalBufferRef.current + " " + interim)
-        .replace(/\s+/g, " ")
-        .trim();
+      const combined = (finalBufferRef.current + " " + interim).replace(/\s+/g, " ").trim();
       setLiveTranscript(combined);
 
-      // BARGE-IN: user speaking while AI is talking
       if (combined && (isSpeakingRef.current || isSpeaking())) {
         cancelSpeech();
         isSpeakingRef.current = false;
         setCallState("listening");
       }
-
       armSilenceTimer();
     };
 
     rec.onerror = (ev: SpeechRecognitionErrorEvent) => {
-      // 'no-speech' is normal — don't surface
       if (ev.error !== "no-speech" && ev.error !== "aborted") {
         console.warn("recognition error:", ev.error);
         setError(ev.error);
@@ -248,11 +300,8 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
     };
 
     rec.onend = () => {
-      // Auto-restart so mic stays HOT (continuous listening)
-      if (wantListeningRef.current && !escalatedRef.current) {
-        try {
-          rec.start();
-        } catch {}
+      if (wantListeningRef.current && !escalatedRef.current && !mutedRef.current) {
+        try { rec.start(); } catch {}
       }
     };
 
@@ -261,134 +310,119 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   }, [armSilenceTimer]);
 
   // ----- Public controls -----
-  const startCall = useCallback(() => {
-    setError(null);
-    setEscalated(false);
-    escalatedRef.current = false;
-    incorrectCountRef.current = 0;
-    partialCountRef.current = 0;
-    setTurns([]);
-    setPendingAnalysis(null);
-    finalBufferRef.current = "";
-    interimBufferRef.current = "";
-    setLiveTranscript("");
-    setStableTranscript("");
+  const startCall = useCallback(
+    (info: CallerInfo) => {
+      setError(null);
+      setEscalated(false);
+      escalatedRef.current = false;
+      lowConfStreakRef.current = 0;
+      setTurns([]);
+      setLatestTriage(null);
+      finalBufferRef.current = "";
+      interimBufferRef.current = "";
+      setLiveTranscript("");
+      setMuted(false);
+      mutedRef.current = false;
 
-    const rec = ensureRecognition();
-    if (!rec) return;
-    wantListeningRef.current = true;
-    try {
-      rec.start();
-    } catch (e) {
-      // already started
-    }
-    setCallState("listening");
+      const id = crypto.randomUUID();
+      caseIdRef.current = id;
+      setCaseId(id);
+      callerRef.current = info;
+      setCaller(info);
+      if (info.language) {
+        const lang = info.language as TTSLang;
+        setLanguage(lang);
+        languageRef.current = lang;
+      }
 
-    // Greeting
-    const greet =
-      languageRef.current === "hi-IN"
-        ? "नमस्ते, यह सुरक्षा एआई आपातकालीन सेवा है। कृपया बताएं क्या हुआ है।"
-        : languageRef.current === "kn-IN"
-          ? "ನಮಸ್ಕಾರ, ಇದು ಸುರಕ್ಷಾ ಎಐ ತುರ್ತು ಸೇವೆ. ಏನಾಯಿತು ಎಂದು ಹೇಳಿ."
-          : "Hello, this is SurakshaAI emergency line. Please tell me what happened.";
-    pushTurn({ role: "agent", text: greet });
-    isSpeakingRef.current = true;
-    setCallState("speaking");
-    speak(greet, languageRef.current, {
-      onEnd: () => {
-        isSpeakingRef.current = false;
-        if (!escalatedRef.current) setCallState("listening");
-      },
-    });
-  }, [ensureRecognition, pushTurn]);
+      // Create case
+      queueStore.upsert({
+        id,
+        ts: new Date().toISOString(),
+        reason: "incoming",
+        transcript: "",
+        events: [{ ts: new Date().toISOString(), kind: "system", text: `Call started — ${info.name}` }],
+        interpreted: null,
+        confidence: null,
+        sentiment: null,
+        priority: null,
+        category: null,
+        suggestedAction: null,
+        language: languageRef.current,
+        status: "queued",
+        caller: info,
+      });
+
+      const rec = ensureRecognition();
+      if (!rec) return;
+      wantListeningRef.current = true;
+      try { rec.start(); } catch {}
+      setCallState("listening");
+
+      const greet =
+        languageRef.current === "hi-IN"
+          ? `नमस्ते ${info.name}, यह सुरक्षा एआई आपातकालीन सेवा है। बताइए क्या हुआ है?`
+          : languageRef.current === "kn-IN"
+            ? `ನಮಸ್ಕಾರ ${info.name}, ಇದು ಸುರಕ್ಷಾ ಎಐ ತುರ್ತು ಸೇವೆ. ಏನಾಯಿತು ಎಂದು ಹೇಳಿ.`
+            : `Hello ${info.name}, this is SurakshaAI emergency line. Tell me what happened.`;
+      pushTurn({ role: "agent", text: greet });
+      addEvent("agent_ai", greet);
+      isSpeakingRef.current = true;
+      setCallState("speaking");
+      speak(greet, languageRef.current, {
+        onEnd: () => {
+          isSpeakingRef.current = false;
+          if (!escalatedRef.current) setCallState(mutedRef.current ? "muted" : "listening");
+        },
+      });
+    },
+    [ensureRecognition, pushTurn, addEvent],
+  );
 
   const endCall = useCallback(() => {
     wantListeningRef.current = false;
     cancelSpeech();
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
+    try { recognitionRef.current?.stop(); } catch {}
     if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
+    if (caseIdRef.current) {
+      addEvent("system", "Caller ended the call");
+      const c = queueStore.get(caseIdRef.current);
+      if (c && !c.locked && c.status !== "resolved" && c.status !== "escalated") {
+        queueStore.update(caseIdRef.current, { status: "false_alarm" });
+      }
+    }
     setCallState("idle");
-  }, []);
+    caseIdRef.current = null;
+    setCaseId(null);
+    callerRef.current = null;
+    setCaller(null);
+  }, [addEvent]);
 
-  const submitVerification = useCallback(
-    (v: Verification) => {
-      if (!pendingAnalysis) return;
+  const toggleMute = useCallback(() => {
+    const next = !mutedRef.current;
+    mutedRef.current = next;
+    setMuted(next);
+    if (next) {
+      try { recognitionRef.current?.stop(); } catch {}
       cancelSpeech();
-      isSpeakingRef.current = false;
-
-      if (v === "correct") {
-        incorrectCountRef.current = 0;
-        partialCountRef.current = 0;
-        // Confirm and continue gathering
-        const msg =
-          languageRef.current === "hi-IN"
-            ? "धन्यवाद। मैं मदद भेज रहा हूँ। और कोई जानकारी?"
-            : languageRef.current === "kn-IN"
-              ? "ಧನ್ಯವಾದಗಳು. ಸಹಾಯ ಕಳುಹಿಸುತ್ತಿದ್ದೇನೆ. ಇನ್ನಷ್ಟು ಮಾಹಿತಿ?"
-              : "Thank you. Help is being dispatched. Any more details?";
-        pushTurn({ role: "agent", text: msg });
-        setCallState("speaking");
-        speak(msg, languageRef.current, {
-          onEnd: () => setCallState("listening"),
-        });
-        setPendingAnalysis(null);
-        return;
+      setCallState("muted");
+      addEvent("system", "Caller muted microphone");
+    } else {
+      const rec = ensureRecognition();
+      if (rec) {
+        try { rec.start(); } catch {}
       }
-
-      if (v === "partial") {
-        partialCountRef.current += 1;
-        if (partialCountRef.current >= 3) {
-          escalate("3 partial verifications", pendingAnalysis);
-          return;
-        }
-        const msg =
-          languageRef.current === "hi-IN"
-            ? "कृपया फिर से बताएं — क्या और क्या सही नहीं था?"
-            : languageRef.current === "kn-IN"
-              ? "ದಯವಿಟ್ಟು ಮತ್ತೆ ಹೇಳಿ — ಯಾವುದು ಸರಿಯಾಗಿಲ್ಲ?"
-              : "Please clarify — what part was not right?";
-        pushTurn({ role: "agent", text: msg });
-        setCallState("speaking");
-        speak(msg, languageRef.current, {
-          onEnd: () => setCallState("listening"),
-        });
-        setPendingAnalysis(null);
-        return;
-      }
-
-      // incorrect
-      incorrectCountRef.current += 1;
-      if (incorrectCountRef.current >= 2) {
-        escalate("2 incorrect verifications", pendingAnalysis);
-        return;
-      }
-      const msg =
-        languageRef.current === "hi-IN"
-          ? "क्षमा कीजिए, फिर से बताएं क्या हुआ है।"
-          : languageRef.current === "kn-IN"
-            ? "ಕ್ಷಮಿಸಿ, ದಯವಿಟ್ಟು ಮತ್ತೆ ಹೇಳಿ ಏನಾಯಿತು ಎಂದು."
-            : "I'm sorry, please tell me again what happened.";
-      pushTurn({ role: "agent", text: msg });
-      setCallState("speaking");
-      speak(msg, languageRef.current, {
-        onEnd: () => setCallState("listening"),
-      });
-      setPendingAnalysis(null);
-    },
-    [escalate, pendingAnalysis, pushTurn],
-  );
+      setCallState("listening");
+      addEvent("system", "Caller unmuted microphone");
+    }
+  }, [ensureRecognition, addEvent]);
 
   useEffect(() => {
     return () => {
       wantListeningRef.current = false;
       cancelSpeech();
-      try {
-        recognitionRef.current?.stop();
-      } catch {}
-      if (silenceTimerRef.current)
-        window.clearTimeout(silenceTimerRef.current);
+      try { recognitionRef.current?.stop(); } catch {}
+      if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
     };
   }, []);
 
@@ -397,13 +431,15 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
     setLanguage,
     callState,
     liveTranscript,
-    stableTranscript,
     turns,
-    pendingAnalysis,
+    latestTriage,
     escalated,
+    muted,
     error,
+    caseId,
+    caller,
     startCall,
     endCall,
-    submitVerification,
+    toggleMute,
   };
 }
