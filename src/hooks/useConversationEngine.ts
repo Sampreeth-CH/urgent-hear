@@ -449,6 +449,7 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
     cancelSpeech();
     try { recognitionRef.current?.stop(); } catch {}
     if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
+    clearIdleTimer();
     if (caseIdRef.current) {
       addEvent("system", "Caller ended the call");
       const c = queueStore.get(caseIdRef.current);
