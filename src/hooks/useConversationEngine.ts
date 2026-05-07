@@ -66,6 +66,9 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   const callerRef = useRef<CallerInfo | null>(null);
   const turnsRef = useRef<Turn[]>([]);
   const lowConfStreakRef = useRef(0);
+  const idleTimerRef = useRef<number | null>(null);
+  const noResponseStageRef = useRef(0); // 0,1,2 -> ask, then mark pending
+  const lastSentimentRef = useRef<Sentiment | null>(null);
 
   useEffect(() => {
     languageRef.current = language;
@@ -127,7 +130,65 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
     [persistCase],
   );
 
-  // ----- Escalation -----
+  // ----- Idle / no-response loop -----
+  const clearIdleTimer = () => {
+    if (idleTimerRef.current) {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  };
+
+  const speakLine = useCallback((text: string) => {
+    cancelSpeech();
+    isSpeakingRef.current = true;
+    setCallState("speaking");
+    pushTurn({ role: "agent", text });
+    addEvent("agent_ai", text);
+    speak(text, languageRef.current, {
+      onEnd: () => {
+        isSpeakingRef.current = false;
+        if (escalatedRef.current) return;
+        setCallState(mutedRef.current ? "muted" : "listening");
+        armIdleTimer();
+      },
+      onError: () => {
+        isSpeakingRef.current = false;
+        setCallState(mutedRef.current ? "muted" : "listening");
+      },
+    });
+  }, [pushTurn, addEvent]);
+
+  const armIdleTimer = useCallback(() => {
+    clearIdleTimer();
+    if (escalatedRef.current || mutedRef.current) return;
+    // Slow down on emotional distress
+    const base = lastSentimentRef.current === "distress" ? 18000 : 12000;
+    idleTimerRef.current = window.setTimeout(() => {
+      if (escalatedRef.current || mutedRef.current || isSpeakingRef.current) return;
+      const stage = noResponseStageRef.current;
+      const lang = languageRef.current;
+      if (stage === 0) {
+        const msg = lang === "hi-IN" ? "क्या आप अभी भी लाइन पर हैं?"
+          : lang === "kn-IN" ? "ನೀವು ಇನ್ನೂ ಲೈನ್‌ನಲ್ಲಿ ಇದ್ದೀರಾ?"
+          : "Are you still there?";
+        noResponseStageRef.current = 1;
+        speakLine(msg);
+      } else if (stage === 1) {
+        const msg = lang === "hi-IN" ? "मुझे आपकी आवाज़ साफ़ नहीं सुनाई दे रही।"
+          : lang === "kn-IN" ? "ನಿಮ್ಮ ಧ್ವನಿ ಸ್ಪಷ್ಟವಾಗಿ ಕೇಳಿಸುತ್ತಿಲ್ಲ."
+          : "I'm unable to hear you clearly.";
+        noResponseStageRef.current = 2;
+        speakLine(msg);
+      } else {
+        // mark pending response, stop prompting
+        addEvent("system", "No caller response — marked pending");
+        persistCase({ status: "pending_response" });
+        pushTurn({ role: "system", text: "No response detected — case marked Pending Response." });
+      }
+    }, base);
+  }, [speakLine, addEvent, persistCase, pushTurn]);
+
+  // ----- Escalation (natural, silent hand-off) -----
   const escalate = useCallback(
     (reason: string, triage?: Triage | null) => {
       if (escalatedRef.current) return;
@@ -135,7 +196,9 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
       setEscalated(true);
       setCallState("escalated");
       cancelSpeech();
+      clearIdleTimer();
       const t = triage ?? latestTriage;
+      const isCritical = t?.priority === "critical" || t?.sentiment === "panic";
       persistCase({
         status: "escalated",
         reason,
@@ -147,14 +210,16 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
         suggestedAction: t?.suggested_action ?? null,
         language: languageRef.current,
       });
-      addEvent("escalation", `Escalated to human agent — ${reason}`);
-      pushTurn({ role: "system", text: `🚨 Escalated to human agent — ${reason}` });
-      const msg =
-        languageRef.current === "hi-IN"
-          ? "मैं एक एजेंट को जोड़ रहा हूँ। लाइन पर बने रहें।"
-          : languageRef.current === "kn-IN"
-            ? "ಏಜೆಂಟ್‌ಗೆ ಸಂಪರ್ಕಿಸುತ್ತಿದ್ದೇನೆ. ಲೈನ್‌ನಲ್ಲಿ ಇರಿ."
-            : "Connecting a human agent now. Please stay on the line.";
+      addEvent("escalation", `Silent hand-off to agent console — ${reason}`);
+      pushTurn({ role: "system", text: `Case forwarded to support officer — ${reason}` });
+      const lang = languageRef.current;
+      const msg = isCritical
+        ? (lang === "hi-IN" ? "मैं इसे अभी अधिकारी को भेज रहा हूँ। लाइन पर बने रहें।"
+            : lang === "kn-IN" ? "ಇದನ್ನು ಈಗಲೇ ಅಧಿಕಾರಿಗೆ ಕಳುಹಿಸುತ್ತಿದ್ದೇನೆ. ಲೈನ್‌ನಲ್ಲಿ ಇರಿ."
+            : "I'm forwarding this to an emergency officer now. Please stay on the line.")
+        : (lang === "hi-IN" ? "मैं यह आपातकालीन सहायता अधिकारी को भेज रहा हूँ।"
+            : lang === "kn-IN" ? "ನಾನು ಇದನ್ನು ತುರ್ತು ಸಹಾಯ ಅಧಿಕಾರಿಗೆ ಕಳುಹಿಸುತ್ತಿದ್ದೇನೆ."
+            : "I'm forwarding this to an emergency support officer. They may contact you shortly.");
       isSpeakingRef.current = true;
       speak(msg, languageRef.current, {
         onEnd: () => { isSpeakingRef.current = false; },
