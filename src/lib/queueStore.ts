@@ -148,7 +148,30 @@ export const queueStore = {
     });
     write(list);
   },
-  resolve(id: string, by: string, finalAction: string) {
+  addCallback(id: string, attempt: Omit<CallbackAttempt, "ts"> & { ts?: string }) {
+    const list = read().map((c) => {
+      if (c.id !== id) return c;
+      if (c.locked) return c;
+      const a: CallbackAttempt = {
+        ts: attempt.ts ?? new Date().toISOString(),
+        by: attempt.by,
+        kind: attempt.kind,
+        note: attempt.note,
+      };
+      const ev: CaseEvent = {
+        ts: a.ts,
+        kind: "agent_human",
+        text: `Callback ${a.kind}${a.note ? ` — ${a.note}` : ""} (by ${a.by})`,
+      };
+      return {
+        ...c,
+        callbackAttempts: [...(c.callbackAttempts ?? []), a],
+        retryCount: (c.retryCount ?? 0) + 1,
+        events: [...c.events, ev],
+      };
+    });
+    write(list);
+  },
     const list = read().map((c) => {
       if (c.id !== id) return c;
       const ev: CaseEvent = {
