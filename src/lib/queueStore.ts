@@ -13,7 +13,10 @@ export type CallStatus =
   | "rejected"
   | "false_alarm"
   | "critical"
-  | "taken_over";
+  | "taken_over"
+  | "pending_response"
+  | "unreachable"
+  | "retry_scheduled";
 
 export interface CallerInfo {
   name: string;
@@ -58,6 +61,16 @@ export interface QueuedCall {
   resolvedBy?: string | null;
   finalAction?: string | null;
   locked?: boolean;
+  callbackAttempts?: CallbackAttempt[];
+  retryCount?: number;
+  nextRetryAt?: string | null;
+}
+
+export interface CallbackAttempt {
+  ts: string;
+  by: string;
+  kind: "call" | "schedule_retry" | "follow_up" | "unreachable";
+  note?: string;
 }
 
 const KEY = "agent_queue";
@@ -90,6 +103,9 @@ function read(): QueuedCall[] {
       resolvedBy: c.resolvedBy ?? null,
       finalAction: c.finalAction ?? null,
       locked: c.locked ?? false,
+      callbackAttempts: Array.isArray(c.callbackAttempts) ? c.callbackAttempts : [],
+      retryCount: c.retryCount ?? 0,
+      nextRetryAt: c.nextRetryAt ?? null,
     }));
   } catch {
     return [];
