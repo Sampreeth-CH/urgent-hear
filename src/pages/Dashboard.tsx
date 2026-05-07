@@ -11,7 +11,7 @@ import {
 import {
   ShieldAlert, LogOut, CheckCircle2, XCircle, Pencil, Headphones,
   Send, Flame, Phone, Lock, Activity, Users, Timer, AlertOctagon,
-  CheckCheck,
+  CheckCheck, PhoneCall, CalendarClock, MailCheck, PhoneOff,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -37,6 +37,9 @@ const statusClass = (s: CallStatus) => ({
   false_alarm: "bg-muted text-muted-foreground",
   critical: "bg-status-critical text-white",
   taken_over: "bg-status-info text-white",
+  pending_response: "bg-status-warn text-black",
+  unreachable: "bg-muted text-muted-foreground",
+  retry_scheduled: "bg-status-info/40 text-foreground",
 }[s] || "bg-muted text-muted-foreground");
 
 const Dashboard = () => {
