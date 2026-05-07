@@ -424,12 +424,21 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
       try { rec.start(); } catch {}
       setCallState("listening");
 
+      const lang = languageRef.current;
+      const hasGps = !!info.gps;
+      const locLine = hasGps
+        ? (lang === "hi-IN" ? " मैंने आपकी अनुमानित लोकेशन प्राप्त कर ली है।"
+          : lang === "kn-IN" ? " ನಿಮ್ಮ ಸುಮಾರು ಸ್ಥಳ ಸಿಕ್ಕಿದೆ."
+          : " I detected your approximate location for emergency assistance.")
+        : (lang === "hi-IN" ? " कृपया अपनी लोकेशन बताइए।"
+          : lang === "kn-IN" ? " ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸ್ಥಳ ತಿಳಿಸಿ."
+          : " Could you please tell me your location?");
       const greet =
-        languageRef.current === "hi-IN"
-          ? `नमस्ते ${info.name}, यह सुरक्षा एआई आपातकालीन सेवा है। बताइए क्या हुआ है?`
-          : languageRef.current === "kn-IN"
-            ? `ನಮಸ್ಕಾರ ${info.name}, ಇದು ಸುರಕ್ಷಾ ಎಐ ತುರ್ತು ಸೇವೆ. ಏನಾಯಿತು ಎಂದು ಹೇಳಿ.`
-            : `Hello ${info.name}, this is SurakshaAI emergency line. Tell me what happened.`;
+        lang === "hi-IN"
+          ? `नमस्ते ${info.name}, यह सुरक्षा एआई आपातकालीन सेवा है।${locLine} बताइए क्या हुआ है?`
+          : lang === "kn-IN"
+            ? `ನಮಸ್ಕಾರ ${info.name}, ಇದು ಸುರಕ್ಷಾ ಎಐ ತುರ್ತು ಸೇವೆ.${locLine} ಏನಾಯಿತು?`
+            : `Hello ${info.name}, this is SurakshaAI emergency line.${locLine} Tell me what happened.`;
       pushTurn({ role: "agent", text: greet });
       addEvent("agent_ai", greet);
       isSpeakingRef.current = true;
@@ -437,11 +446,14 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
       speak(greet, languageRef.current, {
         onEnd: () => {
           isSpeakingRef.current = false;
-          if (!escalatedRef.current) setCallState(mutedRef.current ? "muted" : "listening");
+          if (!escalatedRef.current) {
+            setCallState(mutedRef.current ? "muted" : "listening");
+            armIdleTimer();
+          }
         },
       });
     },
-    [ensureRecognition, pushTurn, addEvent],
+    [ensureRecognition, pushTurn, addEvent, armIdleTimer],
   );
 
   const endCall = useCallback(() => {
