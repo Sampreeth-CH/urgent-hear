@@ -232,6 +232,8 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
   const runTriage = useCallback(
     async (transcript: string) => {
       processingRef.current = true;
+      noResponseStageRef.current = 0;
+      clearIdleTimer();
       setCallState("thinking");
       pushTurn({ role: "user", text: transcript });
       addEvent("user", transcript);
@@ -252,6 +254,7 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
         if (error) throw error;
         const triage = data as Triage;
         setLatestTriage(triage);
+        lastSentimentRef.current = triage.sentiment;
 
         persistCase({
           interpreted: triage,
@@ -263,19 +266,7 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
           status: triage.needs_human ? "escalated" : (triage.resolved_by_ai ? "ai_resolving" : "in_progress"),
         });
 
-        // Hard escalation rules
-        if (triage.sentiment === "panic") return escalate("panic detected", triage);
-        if (triage.priority === "critical" && triage.needs_human) return escalate("critical incident", triage);
-        if (triage.needs_human) return escalate("AI requested human", triage);
-
-        if (triage.confidence_score < 40) {
-          lowConfStreakRef.current += 1;
-          if (lowConfStreakRef.current >= 2) return escalate("low confidence repeated", triage);
-        } else {
-          lowConfStreakRef.current = 0;
-        }
-
-        // Speak short reply
+        // Speak short reply FIRST (natural turn) — escalation happens silently in parallel
         const reply = triage.assistant_reply?.trim() || triage.summary;
         setCallState("speaking");
         pushTurn({ role: "agent", text: reply, triage });
@@ -285,16 +276,25 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
           onEnd: () => {
             isSpeakingRef.current = false;
             if (escalatedRef.current) return;
-            if (triage.resolved_by_ai) {
-              persistCase({ status: "ai_resolving" });
-            }
             setCallState(mutedRef.current ? "muted" : "listening");
+            armIdleTimer();
           },
           onError: () => {
             isSpeakingRef.current = false;
             setCallState(mutedRef.current ? "muted" : "listening");
           },
         });
+
+        // Silent escalation triggers (data sent to dashboard immediately; spoken hand-off is brief & natural)
+        if (triage.sentiment === "panic") return escalate("panic detected", triage);
+        if (triage.priority === "critical" && triage.needs_human) return escalate("critical incident", triage);
+        if (triage.needs_human) return escalate("AI requested human", triage);
+        if (triage.confidence_score < 40) {
+          lowConfStreakRef.current += 1;
+          if (lowConfStreakRef.current >= 2) return escalate("low confidence repeated", triage);
+        } else {
+          lowConfStreakRef.current = 0;
+        }
       } catch (e: any) {
         console.error(e);
         setError(e?.message || "NLP error");
@@ -303,7 +303,7 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
         processingRef.current = false;
       }
     },
-    [escalate, persistCase, addEvent, pushTurn],
+    [escalate, persistCase, addEvent, pushTurn, armIdleTimer],
   );
 
   const armSilenceTimer = useCallback(() => {
