@@ -172,6 +172,7 @@ export const queueStore = {
     });
     write(list);
   },
+  resolve(id: string, by: string, finalAction: string) {
     const list = read().map((c) => {
       if (c.id !== id) return c;
       const ev: CaseEvent = {
