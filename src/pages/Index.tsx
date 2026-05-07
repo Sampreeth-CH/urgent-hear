@@ -188,7 +188,7 @@ const Index = () => {
               </div>
               {gps && (
                 <p className="text-xs text-status-ok">
-                  📍 Location detected for emergency assistance ({gps.lat.toFixed(4)}, {gps.lng.toFixed(4)})
+                  📍 Approximate location detected for emergency assistance.
                 </p>
               )}
               {gpsState === "denied" && (

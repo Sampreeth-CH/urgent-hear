@@ -11,7 +11,7 @@ import {
 import {
   ShieldAlert, LogOut, CheckCircle2, XCircle, Pencil, Headphones,
   Send, Flame, Phone, Lock, Activity, Users, Timer, AlertOctagon,
-  CheckCheck,
+  CheckCheck, PhoneCall, CalendarClock, MailCheck, PhoneOff,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -37,6 +37,9 @@ const statusClass = (s: CallStatus) => ({
   false_alarm: "bg-muted text-muted-foreground",
   critical: "bg-status-critical text-white",
   taken_over: "bg-status-info text-white",
+  pending_response: "bg-status-warn text-black",
+  unreachable: "bg-muted text-muted-foreground",
+  retry_scheduled: "bg-status-info/40 text-foreground",
 }[s] || "bg-muted text-muted-foreground");
 
 const Dashboard = () => {
@@ -267,6 +270,48 @@ const Dashboard = () => {
                 {selected.locked && (
                   <div className="mt-3 rounded border border-status-ok/40 bg-status-ok/10 p-2 text-xs">
                     <b>Resolved</b> by {selected.resolvedBy} at {new Date(selected.resolvedAt!).toLocaleString()} · final action: {selected.finalAction}
+                  </div>
+                )}
+
+                {/* Callback workflow */}
+                {!selected.locked && (
+                  <div className="mt-3 rounded border border-border p-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase text-muted-foreground">Callback workflow</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Attempts: {selected.callbackAttempts?.length ?? 0} · Retries: {selected.retryCount ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" className="gap-1"
+                        onClick={() => { if (user) { queueStore.addCallback(selected.id, { by: user, kind: "call", note: `Called ${selected.caller?.phone ?? ""}` }); queueStore.update(selected.id, { status: "connected" }); } }}>
+                        <PhoneCall className="h-4 w-4" /> Call User
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1"
+                        onClick={() => { if (user) { const at = new Date(Date.now() + 15*60*1000).toISOString(); queueStore.addCallback(selected.id, { by: user, kind: "schedule_retry", note: `Retry at ${new Date(at).toLocaleTimeString()}` }); queueStore.update(selected.id, { status: "retry_scheduled", nextRetryAt: at }); } }}>
+                        <CalendarClock className="h-4 w-4" /> Schedule Retry (15m)
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1"
+                        onClick={() => { if (user) queueStore.addCallback(selected.id, { by: user, kind: "follow_up", note: "Follow-up sent" }); }}>
+                        <MailCheck className="h-4 w-4" /> Send Follow-up
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-1"
+                        onClick={() => { if (user) { queueStore.addCallback(selected.id, { by: user, kind: "unreachable" }); queueStore.update(selected.id, { status: "unreachable" }); } }}>
+                        <PhoneOff className="h-4 w-4" /> Mark Unreachable
+                      </Button>
+                    </div>
+                    {selected.nextRetryAt && (
+                      <div className="text-[11px] text-muted-foreground">Next retry: {new Date(selected.nextRetryAt).toLocaleString()}</div>
+                    )}
+                    {(selected.callbackAttempts?.length ?? 0) > 0 && (
+                      <div className="text-[11px] space-y-0.5 max-h-24 overflow-y-auto border-t border-border pt-1">
+                        {selected.callbackAttempts!.slice().reverse().map((a, i) => (
+                          <div key={i} className="text-muted-foreground">
+                            <span className="tabular-nums">{new Date(a.ts).toLocaleTimeString()}</span> · <b className="text-foreground">{a.kind}</b> by {a.by}{a.note ? ` — ${a.note}` : ""}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

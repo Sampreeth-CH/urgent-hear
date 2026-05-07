@@ -13,7 +13,10 @@ export type CallStatus =
   | "rejected"
   | "false_alarm"
   | "critical"
-  | "taken_over";
+  | "taken_over"
+  | "pending_response"
+  | "unreachable"
+  | "retry_scheduled";
 
 export interface CallerInfo {
   name: string;
@@ -58,6 +61,16 @@ export interface QueuedCall {
   resolvedBy?: string | null;
   finalAction?: string | null;
   locked?: boolean;
+  callbackAttempts?: CallbackAttempt[];
+  retryCount?: number;
+  nextRetryAt?: string | null;
+}
+
+export interface CallbackAttempt {
+  ts: string;
+  by: string;
+  kind: "call" | "schedule_retry" | "follow_up" | "unreachable";
+  note?: string;
 }
 
 const KEY = "agent_queue";
@@ -90,6 +103,9 @@ function read(): QueuedCall[] {
       resolvedBy: c.resolvedBy ?? null,
       finalAction: c.finalAction ?? null,
       locked: c.locked ?? false,
+      callbackAttempts: Array.isArray(c.callbackAttempts) ? c.callbackAttempts : [],
+      retryCount: c.retryCount ?? 0,
+      nextRetryAt: c.nextRetryAt ?? null,
     }));
   } catch {
     return [];
@@ -129,6 +145,30 @@ export const queueStore = {
       if (c.locked) return c;
       const e: CaseEvent = { ts: ev.ts ?? new Date().toISOString(), kind: ev.kind, text: ev.text };
       return { ...c, events: [...c.events, e] };
+    });
+    write(list);
+  },
+  addCallback(id: string, attempt: Omit<CallbackAttempt, "ts"> & { ts?: string }) {
+    const list = read().map((c) => {
+      if (c.id !== id) return c;
+      if (c.locked) return c;
+      const a: CallbackAttempt = {
+        ts: attempt.ts ?? new Date().toISOString(),
+        by: attempt.by,
+        kind: attempt.kind,
+        note: attempt.note,
+      };
+      const ev: CaseEvent = {
+        ts: a.ts,
+        kind: "agent_human",
+        text: `Callback ${a.kind}${a.note ? ` — ${a.note}` : ""} (by ${a.by})`,
+      };
+      return {
+        ...c,
+        callbackAttempts: [...(c.callbackAttempts ?? []), a],
+        retryCount: (c.retryCount ?? 0) + 1,
+        events: [...c.events, ev],
+      };
     });
     write(list);
   },
