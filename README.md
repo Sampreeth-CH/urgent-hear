@@ -35,12 +35,13 @@ Unlike traditional systems, SurakshaAI ensures:
 > ❗ "No action is taken without confirmed understanding"
 
 ### Flow:
-1. AI interprets user input  
-2. System restates the issue  
+
+1. AI interprets user input
+2. System restates the issue
 3. User confirms:
-   - ✅ Correct  
-   - ⚠️ Partially Correct  
-   - ❌ Incorrect  
+   - ✅ Correct
+   - ⚠️ Partially Correct
+   - ❌ Incorrect
 
 ---
 
@@ -64,11 +65,11 @@ Voice Input ↓ Speech-to-Text ↓ Language Detection ↓ AI Understanding ↓ S
 
 ## 🚨 Priority System
 
-| Level   | Description                     |
-|--------|---------------------------------|
-| 🔴 High   | Panic / Immediate danger        |
-| 🟡 Medium | Concern / Confusion / Anger     |
-| 🟢 Low    | Non-urgent issues              |
+| Level     | Description                 |
+| --------- | --------------------------- |
+| 🔴 High   | Panic / Immediate danger    |
+| 🟡 Medium | Concern / Confusion / Anger |
+| 🟢 Low    | Non-urgent issues           |
 
 ---
 
@@ -76,24 +77,25 @@ Voice Input ↓ Speech-to-Text ↓ Language Detection ↓ AI Understanding ↓ S
 
 The system automatically escalates when:
 
-- Confidence is low  
-- Verification fails  
-- High distress is detected  
+- Confidence is low
+- Verification fails
+- High distress is detected
 
 Agents receive:
-- Transcript  
-- AI interpretation  
-- Sentiment analysis  
-- Priority score  
+
+- Transcript
+- AI interpretation
+- Sentiment analysis
+- Priority score
 
 ---
 
 ## 📱 UI Highlights
 
-- 🎤 Voice interaction screen  
-- 🔁 Verification interface  
-- 📊 Agent dashboard  
-- 🚨 Priority indicators  
+- 🎤 Voice interaction screen
+- 🔁 Verification interface
+- 📊 Agent dashboard
+- 🚨 Priority indicators
 
 ---
 
@@ -107,35 +109,35 @@ Agents receive:
 - Lovable Cloud (Edge Functions)
 
 ---
+
 ## 📸 Screenshots
 
 ### 🎙️ Voice Interaction
+
 ![Voice Screen](./assets/voice.png)
 
 ---
 
 ### 🔁 Verification Loop
+
 ![Verification Screen](./assets/verification.png)
 
 ---
 
 ### 📊 Agent Dashboard
+
 ![Dashboard](./assets/dashboard.png)
-
-
 
 🤝 Contributing
 
 Contributions are welcome!
 Feel free to fork the repo and submit a pull request.
 
-
 ---
 
 📄 License
 
 This project is developed for the AI for Bharat Hackathon (Theme 12: AI for 1092 Helpline).
-
 
 ---
 
@@ -149,6 +151,7 @@ Built with a focus on improving real-world emergency response systems using AI.
 - Sampreeth C H
 
 ---
+
 📌 Future Improvements
 
 Support for more Indian languages
@@ -161,6 +164,39 @@ Advanced analytics dashboard
 
 ---
 
+---
+
+## 🧩 AI Processing Pipeline
+
+SurakshaAI follows a structured AI pipeline to ensure reliable emergency communication handling.
+
+### Processing Stages
+
+1. 🎤 Voice Capture  
+   Captures live user speech from the helpline interface.
+
+2. 🗣️ Speech-to-Text Conversion  
+   Converts multilingual audio into readable text.
+
+3. 🌐 Language Identification  
+   Detects the spoken language automatically.
+
+4. 🧠 Intent Understanding  
+   Identifies the user's issue and emergency context.
+
+5. 😡 Emotion & Sentiment Detection  
+   Evaluates stress, panic, anger, or urgency levels.
+
+6. 📈 Confidence Evaluation  
+   Measures how accurately the AI understood the request.
+
+7. 🔁 Verification Response  
+   Confirms interpretation with the caller before action.
+
+8. 🚨 Smart Escalation  
+   Transfers critical or uncertain cases to human operators.
+
+---
 
 ## 🚀 Getting Started
 
@@ -278,3 +314,4 @@ The application should now be running locally.
 
 ---
 
+```
