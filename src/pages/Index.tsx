@@ -94,12 +94,23 @@ const Index = () => {
   };
 
   const stateLabel: Record<string, string> = {
-    idle: "Idle", listening: "Listening", thinking: "Processing",
-    speaking: "AI Speaking", muted: "Mic Muted", escalated: "Escalated", resolved: "Resolved",
+    idle: "Idle",
+    listening: "Your turn — tap Unmute to speak",
+    user_speaking: "You are speaking",
+    thinking: "Processing your message",
+    speaking: "AI Speaking — please stay muted",
+    muted: "Mic Muted",
+    escalated: "Escalated",
+    resolved: "Resolved",
   };
   const stateColor: Record<string, string> = {
-    listening: "bg-emerald-500", thinking: "bg-amber-500", speaking: "bg-sky-500",
-    muted: "bg-muted-foreground", escalated: "bg-destructive", resolved: "bg-status-ok",
+    listening: "bg-emerald-500",
+    user_speaking: "bg-emerald-600",
+    thinking: "bg-amber-500",
+    speaking: "bg-sky-500",
+    muted: "bg-muted-foreground",
+    escalated: "bg-destructive",
+    resolved: "bg-status-ok",
     idle: "bg-muted-foreground",
   };
 
@@ -265,13 +276,14 @@ const Index = () => {
           </div>
 
           <div className="flex items-center gap-3 rounded-md border border-border bg-card p-3">
-            {callState === "listening" ? <Mic className="h-5 w-5 text-emerald-500 animate-pulse" />
+            {callState === "user_speaking" ? <Mic className="h-5 w-5 text-emerald-500 animate-pulse" />
+              : callState === "listening" ? <Mic className="h-5 w-5 text-emerald-500" />
               : callState === "speaking" ? <Volume2 className="h-5 w-5 text-sky-500 animate-pulse" />
-              : callState === "muted" ? <MicOff className="h-5 w-5 text-muted-foreground" />
+              : callState === "thinking" ? <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
               : <MicOff className="h-5 w-5 text-muted-foreground" />}
             <p className="text-sm text-muted-foreground">
               State: <b className="text-foreground">{stateLabel[callState]}</b>
-              &nbsp;· Mic stays open. Speak over the agent to interrupt. Use Mute to pause.
+              &nbsp;· Flow: AI speaks → tap <b>Unmute</b> → speak → tap <b>Mute</b> so AI can respond.
             </p>
           </div>
         </section>
