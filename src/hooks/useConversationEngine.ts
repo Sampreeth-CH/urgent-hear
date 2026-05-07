@@ -467,11 +467,31 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
     const next = !mutedRef.current;
     mutedRef.current = next;
     setMuted(next);
+    clearIdleTimer();
     if (next) {
-      try { recognitionRef.current?.stop(); } catch {}
-      cancelSpeech();
-      setCallState("muted");
+      // Speak ONE calm acknowledgement, then go silent
+      const lang = languageRef.current;
+      const msg = lang === "hi-IN"
+        ? "आपका माइक्रोफ़ोन म्यूट है। तैयार होने पर अनम्यूट करें।"
+        : lang === "kn-IN"
+          ? "ನಿಮ್ಮ ಮೈಕ್ ಮ್ಯೂಟ್ ಆಗಿದೆ. ಸಿದ್ಧವಾದಾಗ ಅನ್‌ಮ್ಯೂಟ್ ಮಾಡಿ."
+          : "Your microphone is muted. Unmute whenever you're ready to continue.";
       addEvent("system", "Caller muted microphone");
+      pushTurn({ role: "system", text: "🎤 Mic muted" });
+      isSpeakingRef.current = true;
+      setCallState("speaking");
+      speak(msg, lang, {
+        onEnd: () => {
+          isSpeakingRef.current = false;
+          try { recognitionRef.current?.stop(); } catch {}
+          setCallState("muted");
+        },
+        onError: () => {
+          isSpeakingRef.current = false;
+          try { recognitionRef.current?.stop(); } catch {}
+          setCallState("muted");
+        },
+      });
     } else {
       const rec = ensureRecognition();
       if (rec) {
@@ -479,8 +499,10 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
       }
       setCallState("listening");
       addEvent("system", "Caller unmuted microphone");
+      pushTurn({ role: "system", text: "🎤 Listening resumed" });
+      armIdleTimer();
     }
-  }, [ensureRecognition, addEvent]);
+  }, [ensureRecognition, addEvent, pushTurn, armIdleTimer]);
 
   useEffect(() => {
     return () => {
