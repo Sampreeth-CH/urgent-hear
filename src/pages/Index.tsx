@@ -276,13 +276,14 @@ const Index = () => {
           </div>
 
           <div className="flex items-center gap-3 rounded-md border border-border bg-card p-3">
-            {callState === "listening" ? <Mic className="h-5 w-5 text-emerald-500 animate-pulse" />
+            {callState === "user_speaking" ? <Mic className="h-5 w-5 text-emerald-500 animate-pulse" />
+              : callState === "listening" ? <Mic className="h-5 w-5 text-emerald-500" />
               : callState === "speaking" ? <Volume2 className="h-5 w-5 text-sky-500 animate-pulse" />
-              : callState === "muted" ? <MicOff className="h-5 w-5 text-muted-foreground" />
+              : callState === "thinking" ? <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
               : <MicOff className="h-5 w-5 text-muted-foreground" />}
             <p className="text-sm text-muted-foreground">
               State: <b className="text-foreground">{stateLabel[callState]}</b>
-              &nbsp;· Mic stays open. Speak over the agent to interrupt. Use Mute to pause.
+              &nbsp;· Flow: AI speaks → tap <b>Unmute</b> → speak → tap <b>Mute</b> so AI can respond.
             </p>
           </div>
         </section>
