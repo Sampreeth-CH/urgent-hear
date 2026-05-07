@@ -164,8 +164,6 @@ Advanced analytics dashboard
 
 ---
 
----
-
 ## 🧩 AI Processing Pipeline
 
 SurakshaAI follows a structured AI pipeline to ensure reliable emergency communication handling.
