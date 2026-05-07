@@ -433,12 +433,18 @@ export function useConversationEngine(initialLang: TTSLang = "en-IN") {
         : (lang === "hi-IN" ? " कृपया अपनी लोकेशन बताइए।"
           : lang === "kn-IN" ? " ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸ್ಥಳ ತಿಳಿಸಿ."
           : " Could you please tell me your location?");
+      const howto =
+        lang === "hi-IN"
+          ? " यह कॉल लगातार सुनती रहती है। जब मैं बोल रहा हूँ, तब आप म्यूट दबा सकते हैं, और जवाब देने के लिए अनम्यूट कर लें।"
+          : lang === "kn-IN"
+            ? " ಈ ಕರೆ ನಿರಂತರವಾಗಿ ಆಲಿಸುತ್ತದೆ. ನಾನು ಮಾತನಾಡುವಾಗ ಮ್ಯೂಟ್ ಒತ್ತಿ, ಪ್ರತಿಕ್ರಿಯಿಸಲು ಅನ್‌ಮ್ಯೂಟ್ ಮಾಡಿ."
+            : " This line listens continuously — if my voice overlaps yours, just tap mute while I speak, then unmute to reply.";
       const greet =
         lang === "hi-IN"
-          ? `नमस्ते ${info.name}, यह सुरक्षा एआई आपातकालीन सेवा है।${locLine} बताइए क्या हुआ है?`
+          ? `नमस्ते ${info.name}, यह सुरक्षा एआई आपातकालीन सेवा है।${locLine}${howto} बताइए क्या हुआ है?`
           : lang === "kn-IN"
-            ? `ನಮಸ್ಕಾರ ${info.name}, ಇದು ಸುರಕ್ಷಾ ಎಐ ತುರ್ತು ಸೇವೆ.${locLine} ಏನಾಯಿತು?`
-            : `Hello ${info.name}, this is SurakshaAI emergency line.${locLine} Tell me what happened.`;
+            ? `ನಮಸ್ಕಾರ ${info.name}, ಇದು ಸುರಕ್ಷಾ ಎಐ ತುರ್ತು ಸೇವೆ.${locLine}${howto} ಏನಾಯಿತು?`
+            : `Hello ${info.name}, this is SurakshaAI emergency line.${locLine}${howto} Tell me what happened.`;
       pushTurn({ role: "agent", text: greet });
       addEvent("agent_ai", greet);
       isSpeakingRef.current = true;
